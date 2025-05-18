@@ -12,6 +12,12 @@ from autojump_argparse import ArgumentParser  # noqa
 
 SUPPORTED_SHELLS = ('bash', 'zsh', 'fish', 'tcsh')
 
+def is_msys2():
+    '''
+    判断存在环境变量MSYSTEM，说明是msys2环境
+    '''
+    return "MSYSTEM" in os.environ and platform.system() == 'Windows'
+
 
 def cp(src, dest, dryrun=False):
     print('copying file: %s -> %s' % (src, dest))
@@ -55,7 +61,15 @@ def modify_autojump_lua(clink_dir, bin_dir, dryrun=False):
 
 
 def parse_arguments():  # noqa
-    if platform.system() == 'Windows':
+    # USER MSYSTEM_PREFIX
+    # 判断存在环境变量MSYSTEM_PREFIX，说明是msys2环境
+    if is_msys2():
+        # 如果是msys2环境，设置默认路径
+        default_user_destdir = os.path.join(
+            os.getenv('HOME'),
+            '.autojump',
+        )
+    elif platform.system() == 'Windows':
         default_user_destdir = os.path.join(
             os.getenv('LOCALAPPDATA', ''),
             'autojump',
@@ -156,7 +170,7 @@ def parse_arguments():  # noqa
 
 
 def show_post_installation_message(etc_dir, share_dir, bin_dir):
-    if platform.system() == 'Windows':
+    if platform.system() == 'Windows' and not is_msys2():
         print('\nPlease manually add %s to your user path' % bin_dir)
     else:
         if get_shell() == 'fish':
@@ -205,7 +219,7 @@ def main(args):
     cp('./bin/icon.png', share_dir, args.dryrun)
     cp('./docs/autojump.1', doc_dir, args.dryrun)
 
-    if platform.system() == 'Windows':
+    if platform.system() == 'Windows' and not is_msys2():
         cp('./bin/autojump.lua', args.clinkdir, args.dryrun)
         cp('./bin/autojump.bat', bin_dir, args.dryrun)
         cp('./bin/j.bat', bin_dir, args.dryrun)

@@ -22,6 +22,7 @@ from __future__ import print_function
 
 import os
 import sys
+import subprocess
 from itertools import chain
 from math import sqrt
 from operator import attrgetter
@@ -56,6 +57,7 @@ from autojump_utils import get_tab_entry_info
 from autojump_utils import has_uppercase
 from autojump_utils import is_autojump_sourced
 from autojump_utils import is_osx
+from autojump_utils import is_msys2
 from autojump_utils import is_windows
 from autojump_utils import last
 from autojump_utils import print_entry
@@ -70,19 +72,43 @@ FUZZY_MATCH_THRESHOLD = 0.6
 TAB_ENTRIES_COUNT = 9
 TAB_SEPARATOR = '__'
 
+def convert_path(path, option="-u"):
+    """
+    使用 cygpath 转换路径格式
+
+    参数:
+    - path: 要转换的路径（字符串）
+    - option: 转换选项
+      - '-u': Windows 路径 → Unix 路径（默认）
+      - '-w': Unix 路径 → Windows 路径
+    """
+    if is_msys2():
+        try:
+            result = subprocess.run(
+                ['cygpath', option, path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout.strip()  # 返回转换后的路径
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e.stderr}")
+            return path  # 转换失败时返回原始路径
+    else:
+        return path;
 
 def set_defaults():
     config = {}
 
     if is_osx():
         data_home = os.path.join(os.path.expanduser('~'), 'Library')
-    elif is_windows():
+    elif is_windows() and not is_msys2():
         data_home = os.getenv('APPDATA')
     else:
         data_home = os.getenv(
             'XDG_DATA_HOME',
             os.path.join(
-                os.path.expanduser('~'),
+                os.getenv('HOME'),
                 '.local',
                 'share',
             ),
@@ -274,10 +300,11 @@ def main(args):  # noqa
         print('and read the post installation instructions.')
         return 1
 
-    config = set_defaults()
+    config = set_defaults();
 
     # all arguments are mutually exclusive
     if args.add:
+        args.add = convert_path(args.add);
         save(config, first(add_path(load(config), args.add)))
     elif args.complete:
         handle_tab_completion(
@@ -339,4 +366,25 @@ def main(args):  # noqa
 
 
 if __name__ == '__main__':
+    if is_msys2():
+        class BinaryStdout:
+            '''
+            print(xxx, end="\n")
+            '''
+            def __init__(self, stream):
+                self.stream = stream
+
+            def write(self, s):
+                if isinstance(s, str):
+                    s = s.encode('utf-8')
+                self.stream.buffer.write(s)
+
+            def flush(self):
+                self.stream.buffer.flush()
+
+            def __getattr__(self, attr):
+                return getattr(self.stream, attr)
+
+
+        sys.stdout = BinaryStdout(sys.stdout)
     sys.exit(main(parse_arguments()))

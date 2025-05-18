@@ -113,6 +113,13 @@ def is_windows():
     return platform.system() == 'Windows'
 
 
+def is_msys2():
+    '''
+    判断存在环境变量MSYSTEM，说明是msys2环境
+    '''
+    return "MSYSTEM" in os.environ and platform.system() == 'Windows'
+
+
 def last(xs):
     it = iter(xs)
     tmp = None
